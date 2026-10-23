@@ -61,7 +61,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: 🔎 Escaneo de Dependencias y Secretos (Trivy FS)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'fs'
           scan-ref: '.'
@@ -113,7 +113,7 @@ jobs:
 
       - name: 🛡️ Escaneo de la Imagen de Contenedor (Trivy Image)
         if: github.event_name != 'pull_request'
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           format: 'table'
