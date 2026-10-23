@@ -1,6 +1,6 @@
 {
   "name": "cicd-software-architecture-demo",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Demostración de CI/CD para el curso de Arquitectura de Software - Ingeniería de Sistemas",
   "main": "src/server.js",
   "scripts": {

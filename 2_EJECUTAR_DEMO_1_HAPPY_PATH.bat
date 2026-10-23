@@ -1,13 +1,12 @@
 @echo off
-chcp 65001 > nul
 title Demo 1: Happy Path (Version 1.1.0)
 color 0A
 
 echo ==========================================================
-echo 🟢 ESCENARIO 1: HAPPY PATH (PROMOCIÓN A VERSIÓN 1.1.0)
+echo [ESCENARIO 1] HAPPY PATH - PROMOCION A VERSION 1.1.0
 echo ==========================================================
 echo.
-echo [1/3] Actualizando versión en package.json a 1.1.0...
+echo [1/3] Actualizando version en package.json a 1.1.0...
 call npm run demo:bump
 
 echo.
@@ -21,10 +20,10 @@ git push origin main
 
 echo.
 echo ==========================================================
-echo ✅ ¡CAMBIO ENVIADO EXITOSAMENTE A GITHUB!
-echo 👉 Mira la pestaña de GitHub Actions en tu navegador.
-echo 👉 Verás pasar el Quality Gate, DevSecOps y Docker Build.
-echo 👉 Luego recarga http://localhost:3000 para ver la v1.1.0.
+echo [EXITO] CAMBIO ENVIADO A GITHUB
+echo - Mira la pestana de GitHub Actions en tu navegador.
+echo - Veras pasar: Quality Gate, DevSecOps y Docker Build.
+echo - Luego recarga http://localhost:3000 para ver la v1.1.0.
 echo ==========================================================
 echo.
 pause
