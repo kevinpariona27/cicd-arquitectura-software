@@ -1,156 +1,85 @@
-name: CI/CD Pipeline - Arquitectura de Software
+name: CI-CD
 
-# Triggers: Ejecuta en cada push a main y en cada Pull Request
 on:
   push:
-    branches: [ "main" ]
+    branches: [main]
   pull_request:
-    branches: [ "main" ]
-  workflow_dispatch:
+    branches: [main]
 
 permissions:
   contents: read
   packages: write
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
-
 jobs:
-  # ========================================================
-  # ETAPA 1: Quality Gate & Shift-Left Testing (Pool & Kevin)
-  # ========================================================
-  quality-gate:
-    name: "🧪 1. Quality Gate (Pool: Testing & Lint)"
+  # ── Pool: quality gate ───────────────────────────────────────────
+  test:
     runs-on: ubuntu-latest
     steps:
-      - name: 📥 Clonar repositorio
-        uses: actions/checkout@v4
-
-      - name: ⚙️ Configurar Node.js v20
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
+          cache: npm
+      - run: npm ci
+      - run: npm test
 
-      - name: 📦 Instalar dependencias limpias (npm ci)
-        run: npm ci
+  # ── Zaga + Pozo: imagen Docker, escaneo y publicación ────────────
+  build:
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: 🔍 Análisis Estático de Código (Linter)
-        run: npm run lint
+      - name: Nombre de la imagen (GHCR exige minúsculas)
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
 
-      - name: 🧪 Ejecución de Pruebas Unitarias y Cobertura (Jest)
-        run: npm run test:coverage
+      - name: Construir imagen
+        run: docker build --build-arg GIT_SHA=${{ github.sha }} -t "$IMAGE:${{ github.sha }}" .
 
-      - name: 📊 Resumen de Quality Gate
-        if: always()
+      - name: Escaneo de seguridad (Trivy)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE }}:${{ github.sha }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: 1
+
+      - name: Publicar en GHCR
         run: |
-          echo "=========================================="
-          echo "✅ Quality Gate concluido con éxito"
-          echo "Atributo asegurado: Modificabilidad y Testabilidad"
-          echo "=========================================="
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker push "$IMAGE:${{ github.sha }}"
 
-  # ========================================================
-  # ETAPA 2: DevSecOps & Análisis de Vulnerabilidades (Pozo)
-  # ========================================================
-  devsecops:
-    name: "🛡️ 2. DevSecOps (Pozo: Trivy Security Scan)"
+  # ── Verton + Miriam: despliegue en Render y health check ─────────
+  deploy:
+    needs: build
     runs-on: ubuntu-latest
+    environment: production
     steps:
-      - name: 📥 Clonar repositorio
-        uses: actions/checkout@v4
+      - name: Nombre de la imagen
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
 
-      - name: 🔎 Escaneo de Dependencias y Secretos (Trivy FS)
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'table'
-          severity: 'HIGH,CRITICAL'
-          exit-code: '0' # Permite continuar reportando las vulnerabilidades encontradas
-
-      - name: 📋 Auditoría de Paquetes npm
-        run: npm audit --audit-level=critical || true
-
-  # ========================================================
-  # ETAPA 3: Inmutabilidad & Empaquetado Docker (Zaga)
-  # ========================================================
-  build-and-push-docker:
-    name: "🐳 3. Docker Multi-Stage & GHCR (Zaga)"
-    needs: [quality-gate, devsecops]
-    runs-on: ubuntu-latest
-    steps:
-      - name: 📥 Clonar repositorio
-        uses: actions/checkout@v4
-
-      - name: ⚙️ Configurar Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: 🔑 Iniciar sesión en GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: 🏷️ Extraer metadatos para Docker (tags y labels)
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=latest
-            type=sha,format=short
-
-      - name: 🔨 Compilar y Publicar Imagen Docker Multi-Stage
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-
-      - name: 🛡️ Escaneo de la Imagen de Contenedor (Trivy Image)
-        if: github.event_name != 'pull_request'
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          format: 'table'
-          severity: 'CRITICAL'
-          exit-code: '0'
-
-  # ========================================================
-  # ETAPA 4: Despliegue Continuo & Health Check (Verton & Miriam)
-  # ========================================================
-  deploy-production:
-    name: "☁️ 4. Despliegue Continuo & Health Check (Verton & Miriam)"
-    needs: [build-and-push-docker]
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - name: 🚀 Disparo de Despliegue en la Nube (Render / Railway / Webhook)
-        env:
-          DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+      - name: Desplegar en Render (deploy hook)
         run: |
-          echo "=========================================================="
-          echo "Iniciando Despliegue Continuo en Producción..."
-          echo "Atributos: Desplegabilidad y Disponibilidad (Zero-Downtime)"
-          echo "=========================================================="
-          if [ -n "$DEPLOY_HOOK" ]; then
-            echo "📡 Disparando webhook en Render/Railway..."
-            curl -f -X POST "$DEPLOY_HOOK"
-            echo "✅ Señal de despliegue enviada satisfactoriamente."
+          if [ -n "${{ secrets.RENDER_DEPLOY_HOOK }}" ]; then
+            curl -fsS -G "${{ secrets.RENDER_DEPLOY_HOOK }}" --data-urlencode "imgURL=$IMAGE:${{ github.sha }}"
           else
-            echo "ℹ️ Secreto RENDER_DEPLOY_HOOK no configurado o en modo demostración local."
-            echo "✅ Imagen docker generada y publicada exitosamente en GitHub Container Registry."
-            echo "✅ La versión liberada se encuentra lista para tráfico productivo."
+            echo "ℹ️ RENDER_DEPLOY_HOOK no configurado todavía en Secrets. Imagen publicada en GHCR."
           fi
 
-      - name: 🩺 Verificación de Health Check y Rollback Guard (Miriam)
+      - name: Health check de la versión nueva
         run: |
-          echo "Validando política de resiliencia:"
-          echo "- Endpoint de salud: /health"
-          echo "- Criterio de liveness: Status 200 OK"
-          echo "- En caso de fallo en /health, el orquestador aborta la promoción y ejecuta Rollback."
-          echo "✅ Verificación de tolerancia a fallos completada."
+          if [ -n "${{ vars.APP_URL }}" ]; then
+            for i in $(seq 1 30); do
+              if curl -fsS "${{ vars.APP_URL }}/health" | grep -q "${{ github.sha }}"; then
+                echo "La versión nueva está activa y sana"
+                exit 0
+              fi
+              echo "Esperando la versión nueva ($i/30)..."
+              sleep 15
+            done
+            echo "La versión nueva no respondió a tiempo"
+            exit 1
+          else
+            echo "ℹ️ APP_URL no configurada todavía en Variables de Actions."
+          fi

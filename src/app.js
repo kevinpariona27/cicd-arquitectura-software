@@ -1,30 +1,31 @@
 const express = require('express');
-const path = require('path');
-
-const healthRouter = require('./routes/health');
-const infoRouter = require('./routes/info');
-const doraRouter = require('./routes/dora');
+const { version } = require('../package.json');
 
 const app = express();
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+// Página principal: el texto visible que cambia en la demo (v1.0.0 -> v1.1.0)
+app.get('/', (req, res) => {
+  res.send(`
+    <main style="font-family: sans-serif; text-align: center; margin-top: 15vh">
+      <h1>Sistema de Asistencia QR</h1>
+      <p style="font-size: 2rem">Versión ${version}</p>
+    </main>
+  `);
+});
 
-// Servir la interfaz gráfica de demostración
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Rutas de la API
-app.use('/health', healthRouter);
-app.use('/api/info', infoRouter);
-app.use('/api/dora', doraRouter);
-
-// Manejador para rutas 404
-app.use((req, res) => {
-  res.status(404).json({
-    error: 'Not Found',
-    path: req.originalUrl,
-    timestamp: new Date().toISOString()
+// Health check: lo usa el pipeline (y Render) para saber si la versión nueva está sana
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    version,
+    commit: process.env.GIT_SHA || 'local',
   });
 });
 
-module.exports = app;
+// Función de negocio con pruebas unitarias (la que se rompe en el escenario 2)
+function porcentajeAsistencia(presentes, total) {
+  if (total <= 0) return 0;
+  return Math.round((presentes / total) * 100);
+}
+
+module.exports = { app, porcentajeAsistencia };
