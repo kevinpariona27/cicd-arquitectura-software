@@ -1,5 +1,8 @@
 # Arquitectura de Software: CI/CD Pipeline & DevSecOps
 
+[![CI/CD Pipeline](https://github.com/kevinpariona27/cicd-arquitectura-software/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/kevinpariona27/cicd-arquitectura-software/actions/workflows/ci-cd.yml)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/kevinpariona27/cicd-arquitectura-software)
+
 Proyecto práctico para la demostración en vivo de **Integración Continua (CI)** y **Entrega / Despliegue Continuo (CD)** dentro del curso de **Arquitectura de Software** (Ingeniería de Sistemas).
 
 ---
